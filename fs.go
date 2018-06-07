@@ -2,8 +2,10 @@ package webresource
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -74,9 +76,6 @@ func (fs *FileSet) String() string {
 		fmt.Fprintf(&buf, "%s, ", r)
 	}
 	buf.Truncate(buf.Len() - 2)
-	// if bytes.HasSuffix(buf.Bytes(), []byte(", ")) {
-	// buf.Truncate(buf.Len() - 2)
-	// }
 
 	fmt.Fprintf(&buf, ")")
 
@@ -95,6 +94,22 @@ func (fs *FileSet) findEntry(fullPath string) *fileEntry {
 		thisEntry = e2
 	}
 	return thisEntry
+}
+
+// Mkdir creates a directory and all its parents.  For directories that
+// already exist this is a nop.
+func (fs *FileSet) MkdirAll(fullPath string, mode os.FileMode) *FileSet {
+	parts := fullPathSplit(fullPath)
+	e := fs.root
+	for _, p := range parts {
+		sube := e.children.entryWithName(p)
+		if sube == nil { // create dir if not there
+			sube = newFileEntry(p, nil, mode|os.ModeDir, time.Now(), nil)
+			e.children = append(e.children, sube)
+		}
+		e = sube
+	}
+	return fs
 }
 
 // Mkdir creates a directory.
@@ -132,6 +147,16 @@ func (fs *FileSet) Mkdir(fullPath string, mode os.FileMode) *FileSet {
 // build time of the file.
 // Readdir() will return files and directories in the sequence they are created.
 func (fs *FileSet) WriteFile(fullPath string, mode os.FileMode, modTime time.Time, contents []byte) *FileSet {
+	return fs.writeFile(fullPath, mode, modTime, contents, false)
+}
+
+// WriteGzipFile works the same as WriteFile except it expects contents to be gzipped and will gunzip them when reading.
+// Allows you to reduce the size of the in-memory and on-disk representation of this file.
+func (fs *FileSet) WriteGzipFile(fullPath string, mode os.FileMode, modTime time.Time, contents []byte) *FileSet {
+	return fs.writeFile(fullPath, mode, modTime, contents, true)
+}
+
+func (fs *FileSet) writeFile(fullPath string, mode os.FileMode, modTime time.Time, contents []byte, gzipped bool) *FileSet {
 
 	fullPath = path.Clean("/" + fullPath)
 
@@ -151,10 +176,12 @@ func (fs *FileSet) WriteFile(fullPath string, mode os.FileMode, modTime time.Tim
 		panic(fmt.Errorf("entry already exists for %q in directory %q", base, dir))
 	}
 
-	dire.children = append(dire.children,
-		newFileEntry(base, contents, mode, modTime, nil))
+	e := newFileEntry(base, contents, mode, modTime, nil)
+	e.gzipped = gzipped
+	dire.children = append(dire.children, e)
 
 	return fs
+
 }
 
 // Open implements http.FileSystem.
@@ -163,7 +190,8 @@ func (fs *FileSet) Open(fullPath string) (http.File, error) {
 	if e == nil {
 		return nil, os.ErrNotExist
 	}
-	return e.open(), nil
+	f, err := e.open()
+	return f, err
 }
 
 func newFileEntry(name string, b []byte, mode os.FileMode, modTime time.Time, sys interface{}) *fileEntry {
@@ -185,6 +213,7 @@ func newFileEntry(name string, b []byte, mode os.FileMode, modTime time.Time, sy
 
 type fileEntry struct {
 	buf      *bytes.Buffer // contents of the file
+	gzipped  bool          // true if buf contains gzipped data
 	name     string        // name component of the file/dir, will never contain a slash except for root
 	mode     os.FileMode
 	modTime  time.Time
@@ -192,16 +221,33 @@ type fileEntry struct {
 	children fileEntryList // for directories, the child entries
 }
 
-func (fe *fileEntry) open() *file {
-	var b []byte
+func (fe *fileEntry) open() (*file, error) {
+	var br *bytes.Reader
 	if fe.buf != nil {
-		b = fe.buf.Bytes()
+		if fe.gzipped {
+			// we have to do the whole gunzip here because gzip readers are not seekable, so we
+			// cannot directly honor the http.File contract without reading in full first
+			gr, err := gzip.NewReader(bytes.NewReader(fe.buf.Bytes()))
+			if err != nil {
+				return nil, err
+			}
+			defer gr.Close()
+			b, err := ioutil.ReadAll(gr)
+			if err != nil {
+				return nil, err
+			}
+			br = bytes.NewReader(b)
+		} else {
+			br = bytes.NewReader(fe.buf.Bytes())
+		}
+	} else {
+		br = bytes.NewReader(nil)
 	}
 	return &file{
 		fileEntry: fe,
-		Reader:    bytes.NewReader(b),
+		Reader:    br,
 		children:  fe.children,
-	}
+	}, nil
 }
 
 // make *fileEntry implement os.FileInfo so it can just return itself from Stat()
