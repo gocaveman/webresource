@@ -1,7 +1,7 @@
 # webresource proposal/prototype
 ***JS/CSS/etc dependency prototype for Go***
 
-The `webresource` package is a prototype for how dependencies for browser libraries (JS, CSS and some others) could be implemented. See (ISSUE LINK) for discussion.
+The `webresource` package is a prototype for how dependencies for browser libraries (JS, CSS and some others) could be implemented. See (https://github.com/golang/go/issues/25781) for discussion.
 
 The objective is to make it possible to package JS/CSS/etc libraries as Go code and express their dependencies using the Go package dependency system (with particular attention to the transition toward [semantic import versioning](https://research.swtch.com/vgo-import)).  
 
@@ -9,7 +9,7 @@ For example, this provides a means to "import `bootstrap.js` and thereby automat
 
 To make this idea viable, it would need to be standardized.
 
-## Usage
+## Usage:
 
 your/app/main.go
 ```
@@ -41,7 +41,7 @@ package bootstrap
 
 The library maintainer can then use `go generate` which will invoke mkwebresource (currently at `github.com/gocaveman/webresource/mkwebresource` but presumably would go somewhere in `golang.org/x`) and package the JS and/or CSS files into a .go file (`webresource-data.go` by default).  The -r option above specifies the packages this one depends on (which in turn result in import statements and cause bootstrap's Module().Requires() to return the jquery dependency.
 
-The `webresource.Resolve()` function showed in main.go above walks the dependency tree and returns the modules in the correct order.  And `webresource.Walk()` provides an easy way to iterate over all of the files of a specific type (file extension).
+The `webresource.Resolve()` function shown in main.go above walks the dependency tree and returns the modules in the correct order.  And `webresource.Walk()` provides an easy way to iterate over all of the files of a specific type (file extension).
 
 The above approach will work correctly with semantic import versioning also.  (See concerns list below for caveats.)
 
@@ -71,7 +71,7 @@ Here's a roundup of the various concerns and my initial ideas on how to address 
 
 - We don't specify how files are combined, minfied, or served, just exactly what is in `Module`.
 - The `mkwebresource` command line utility is there to make it easy to integrate into existing JS and CSS repos.  Go generate functionality can also be used to invoke existing build processes (Grunt, etc.)
-- JS and CSS vendors won't adopt overnight, but a proxy repository can be made for a library and then when the original lib adopts, the proxy can be updated to just depend on the original.
+- JS and CSS vendors won't adopt overnight, but a proxy repository can be made for a library and then when the original lib adopts, the proxy can be updated to just depend on the original.  Things keep working.
 - This is intended for resources with very specific rules: a) must be usable in a browser (no server-side JS, no non-browser languages), b) must not reference local site URLs (e.g. no `url(image.png)`) as they cannot be relied on, c) must be applicable to an entire web page (JS and CSS are, for practical purposes "included on a page", assets like images are not and so in order to be usable must have a known URL, and become outside our scope), d) should not be directly derivable from one of the other input files (minified version, .map files, etc. - these operations should be done after, not included in the library)
 - Fonts can be supported the same was JS and CSS files can, they follow the above rules.  There may be other types of resources that also follow the rules and these would be allowed.
 - This means langauges requiring transpilation are transpiled to JS beforehand (TypeScript, CoffeeScript).  Same for SASS and LESS, they become CSS before we see them in a Module.
