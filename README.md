@@ -1,4 +1,4 @@
-# webresource proposal
+# webresource proposal/prototype
 ***JS/CSS/etc dependency prototype for Go***
 
 The `webresource` package is a prototype for how dependencies for browser libraries (JS, CSS and some others) could be implemented. See (ISSUE LINK) for discussion.
@@ -45,43 +45,38 @@ The `webresource.Resolve()` function showed in main.go above walks the dependenc
 
 The above approach will work correctly with semantic import versioning also.  (See concerns list below for caveats.)
 
-## Scope
+## What Problem This Addresses:
 
-With the aim of simplicity and focusing on the core problems, the following restrictions are applied to the scope of this package:
+Go web applications often need to use JavaScript, CSS (and possibly other) files as part of their front-end/in-browser functionality.  These JS and CSS files have very similar dependency management requirements to Go code itself, and yet there is currently no way for a JS or CSS library to appropriately package itself for use in a Go program.
 
-- fdskj
-- fdsa
+Allowing JS and CSS libraries to present themselves to Go code as Go packages in a standardized way allows Go package management mechanism (today `go get` and various third party tools, but tomorrow `vgo`/go1.11+ and semantic import versioning) to be used to express these dependencies; and makes it easy for Go programs to depend on these libraries in a formalized way.
 
-
-## Motivation
-
-... this has the interesting implication of making Go as a language and it's package management available as an effective tool for managing in-browser resources.  I'm not aware of anyone else doing this well right now.
-
-## JS/CSS Library Maintainers, Code Generation
-
-It is probably not applicable as a sub command directly under 'go', but following the pattern of 
-`golang.org/x/tools/cmd/stringer`, it could be `golang.org/x/tools/mkwebresource` or similar.
-
-## Migration from prototype -> golang.org/x -> stdlib
-
-Unfortunately the `Module` interface needs to refer to itself in order to express a dependency tree, and therefore the same Module interface in multiple packages are not directly compatible.
-
-The solution seems to be for packages to use a different naming convention to obtaining the correct types of Module.  The prototype uses `ModulePROTO()`, if the package were moved to golang.org/x as a sort of test run before bringing into stdlib (as was done with `context`), the convention could be `ModuleX()`, and finally when in stdlib just `Module()`.  This allows packages to support more than one of these at the same time, avoiding packages breaking during migration.
-
-## Questions
-
-Answers to questions you are likely to ask while reading this:
-
-### How is this better than using a CDN like unpkg.com, cdnjs.com, jsdelivr.com, etc.?
-
-(cdns don't handle dependency management and add more possible points of failure)
-
-### Why are the files embedded in Go code?
-
-(can't read from package dir at runtime, "single static binary")
-
-### Why doesn't this support images or even things like template files for XYZ JS framework?
-
-(see rules)
+Making it easy for JS and CSS library vendors to drop a couple of files into their existing repository and make it usable as a Go package has high utility.
 
 
+## Working Demo Server:
+
+The easist way to see this in action is to run the demo server:
+```
+go get github.com/gocaveman/webresource/demoserver
+go install github.com/gocaveman/webresource/demoserver
+$GOPATH/bin/demoserver
+```
+
+This shows an example web application which loads bootstrap and its dependencies.
+
+## Concerns:
+
+Here's a roundup of the various concerns and my initial ideas on how to address them:
+
+- We don't specify how files are combined, minfied, or served, just exactly what is in `Module`.
+- The `mkwebresource` command line utility is there to make it easy to integrate into existing JS and CSS repos.  Go generate functionality can also be used to invoke existing build processes (Grunt, etc.)
+- JS and CSS vendors won't adopt overnight, but a proxy repository can be made for a library and then when the original lib adopts, the proxy can be updated to just depend on the original.
+- This is intended for resources with very specific rules: a) must be usable in a browser (no server-side JS, no non-browser languages), b) must not reference local site URLs (e.g. no `url(image.png)`) as they cannot be relied on, c) must be applicable to an entire web page (JS and CSS are, for practical purposes "included on a page", assets like images are not and so in order to be usable must have a known URL, and become outside our scope), d) should not be directly derivable from one of the other input files (minified version, .map files, etc. - these operations should be done after, not included in the library)
+- Fonts can be supported the same was JS and CSS files can, they follow the above rules.  There may be other types of resources that also follow the rules and these would be allowed.
+- This means langauges requiring transpilation are transpiled to JS beforehand (TypeScript, CoffeeScript).  Same for SASS and LESS, they become CSS before we see them in a Module.
+- ES6+ should normally be transpiled to ES5, BUT it is not invalid for libraries which explicitly require a newer browser to use ES6, but they must be aware they are enforcing this decision on all libraries then depend on this one.
+- JS shims/polyfills should not be depended upon by libraries directly (this would result in bloat and probably duplication as multiple libraries use different polyfills to do the same thing).  Instead libraries using newer features that might need polyfill should say that in the documentation and let the final application developer decide which polyfills to manually include to achieve what browser support.
+- JS libraries with various options can be expressed as each option being an individual package that depends on the core package.  (Example: Syntax highlighter with core functionality and an option/module for each syntax it supports.)
+- All files must be UTF-8, we do not support other input encodings.
+- The `Module` interface is not compatible with other copies of it if moved to another package.  The convention in the prototype is libraries define `ModulePROTO()`, if the `webresource` package were moved to `golang.org/x` as a sort of test run before bringing into stdlib (as was done with `context`), the convention could be `ModuleX()`, and finally when in stdlib just `Module()`.  A module can support mulitple simulaneously without conflict.
