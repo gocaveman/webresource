@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// figure out package name, stripping off major semver if present
-	importNameShort := importPathLast(trimMajorSemver(*importName))
+	importNameShort := importLocalName(trimMajorSemver(*importName))
 
 	filter, err := regexp.Compile(*filterExpr)
 	if err != nil {
@@ -140,7 +140,7 @@ func main() {
 		fmt.Fprintf(&srcbuf, `func requires() []webresource.Module {`+"\n")
 		fmt.Fprintf(&srcbuf, `return []webresource.Module{`+"\n")
 		for _, r := range requireList {
-			fmt.Fprintf(&srcbuf, `%s.%s(),`+"\n", importPathLast(trimMajorSemver(r)), moduleFuncName)
+			fmt.Fprintf(&srcbuf, `%s.%s(),`+"\n", importLocalName(trimMajorSemver(r)), moduleFuncName)
 		}
 		fmt.Fprintf(&srcbuf, `}`+"\n")
 		fmt.Fprintf(&srcbuf, `}`+"\n")
@@ -223,7 +223,12 @@ func trimMajorSemver(p string) string {
 	return p
 }
 
-func importPathLast(p string) string {
-	parts := strings.Split(p, "/")
-	return parts[len(parts)-1]
+func importLocalName(fullImportPath string) string {
+	parts := strings.Split(fullImportPath, "/")
+	ret := parts[len(parts)-1]
+	ret = strings.NewReplacer(
+		".", "",
+		"-", "",
+	).Replace(ret)
+	return ret
 }
