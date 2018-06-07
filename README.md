@@ -15,10 +15,10 @@ your/app/main.go
 ```
 package main
 
-import "webresource" // in prototype: github.com/gocaveman/webresource
+import "github.com/gocaveman/webresource"
 
-import "github.com/jquery/jquery" // prototype proxy for jquery: github.com/gocaveman-libs/jquery 
-import "github.com/twbs/bootstrap" // prototype proxy for bootstrap: github.com/gocaveman-libs/bootstrap 
+import "github.com/gocaveman-libs/jquery"
+import "github.com/gocaveman-libs/bootstrap"
 
 func main() {
 
@@ -36,7 +36,7 @@ github.com/twbs/bootstrap/webresource.go
 ```
 package bootstrap
 
-//go:generate mkwebresource -p "github.com/gocaveman-libs/bootstrap" -r "github.com/jquery/jquery" .
+//go:generate mkwebresource -p "github.com/gocaveman-libs/bootstrap" -r "github.com/gocaveman-libs/jquery" .
 ```
 
 The library maintainer can then use `go generate` which will invoke mkwebresource (currently at `github.com/gocaveman/webresource/mkwebresource` but presumably would go somewhere in `golang.org/x`) and package the JS and/or CSS files into a .go file (`webresource-data.go` by default).  The -r option above specifies the packages this one depends on (which in turn result in import statements and cause bootstrap's Module().Requires() to return the jquery dependency.
