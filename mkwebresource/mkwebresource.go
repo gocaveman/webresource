@@ -15,9 +15,7 @@ import (
 	"strings"
 )
 
-const moduleFuncName = "ModulePROTO" // prototype
-// const moduleFuncName = "ModuleX" // golang.org/x
-// const moduleFuncName = "Module" // go stdlib
+const moduleFuncName = "Module"
 
 func main() {
 
@@ -109,7 +107,7 @@ func main() {
 	fmt.Fprintf(&srcbuf, `import "time"`+"\n")
 	fmt.Fprintf(&srcbuf, "\n")
 
-	fmt.Fprintf(&srcbuf, `import "github.com/gocaveman/webresource" // FIXME: prototype import path for now`+"\n")
+	fmt.Fprintf(&srcbuf, `import "github.com/gocaveman/webresource"`+"\n")
 	fmt.Fprintf(&srcbuf, "\n")
 
 	var requireList []string
