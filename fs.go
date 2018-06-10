@@ -58,8 +58,14 @@ type FileSet struct {
 	requires []Module
 }
 
-func (fs *FileSet) Name() string       { return fs.name }
-func (fs *FileSet) Requires() []Module { return fs.requires }
+func (fs *FileSet) Name() string { return fs.name }
+func (fs *FileSet) Requires() []interface{} {
+	ret := make([]interface{}, 0, len(fs.requires))
+	for _, v := range fs.requires {
+		ret = append(ret, v)
+	}
+	return ret
+}
 
 func (fs *FileSet) String() string {
 

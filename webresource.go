@@ -13,12 +13,23 @@ import (
 // Module interface describes a webresource module with a name (matching the Go import path),
 // an http.FileSystem with it's contents, and slice of other Modules that this one requires.
 // By convention the Module instance for a particular package can be obtained by calling that
-// package's top level Module() function (NOTE: before full adoption this convention is different,
-// other doc.)
+// package's top level Module() function.
 type Module interface {
 	http.FileSystem
 	Name() string
-	Requires() []Module
+	Requires() []interface{}
+}
+
+func requireModules(ilist []interface{}) ModuleList {
+	ret := make(ModuleList, 0, len(ilist))
+	for _, i := range ilist {
+		iv, ok := i.(Module)
+		if !ok {
+			panic(fmt.Errorf("value type %T does not implement Module interface", i))
+		}
+		ret = append(ret, iv)
+	}
+	return ret
 }
 
 // Resolve walks the dependency tree for the resources provided and returns
@@ -37,7 +48,7 @@ func Resolve(r ModuleList) ModuleList {
 	for _, m := range r2 {
 
 		// for each module, recusively resolve it's dependencies
-		mreqs := Resolve(m.Requires())
+		mreqs := Resolve(requireModules(m.Requires()))
 
 		// and add each one to our output, unless it's already there
 		for _, mreq := range mreqs {
